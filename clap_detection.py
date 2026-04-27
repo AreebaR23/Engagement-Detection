@@ -86,7 +86,7 @@ def p1():
         cv2.destroyAllWindows()
 
 def distance(a,b):
-    dist=math.hypot(a[1]-a[0],b[1]-b[0])
+    dist = math.hypot(a[0] - b[0], a[1] - b[1])
     return round(dist,2)
 
 def clap_detection():
@@ -97,18 +97,19 @@ def clap_detection():
 
     cap = cv2.VideoCapture(0)
 
-    ##Clap counter variables
-    counter=0
-    stage= None
-
-    
+    ## Clap counter variables
+    counter = 0
+    stage = None
 
     ## Setup mediapipe instance
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
+            if not ret:
+                print("Failed to read frame from camera.")
+                break
             
-            #Processing
+            # Processing
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
 
@@ -117,33 +118,28 @@ def clap_detection():
             image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
-            #Extract landmarks
-            try:
-                landmarks=results.pose_landmarks.landmark
-                
-                # Get Index coordinates
-                left_hand=[landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].x,landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].y]
-                right_hand=[landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].x,landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].y]
-                
-                # Calculate distance
-                dist = distance(left_hand,right_hand)
-                
-                #clap detection logic
+            # Extract landmarks and detect clap
+            if results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
+
+                left_hand = [landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].x,
+                             landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].y]
+                right_hand = [landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].x,
+                              landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].y]
+
+                dist = distance(left_hand, right_hand)
+
                 if dist > 0.35:
                     stage = "far"
-                if dist < 0.28 and stage =='far':
-                    stage="clap"
-                    counter +=1
+                elif dist < 0.28 and stage == 'far':
+                    stage = "clap"
+                    counter += 1
                     print(counter)
-                
 
-                
-                
-            except:
-                pass
+            stage_text = stage if stage is not None else "None"
             
-            #Clap counter
-            #Setup status box
+            # Clap counter
+            # Setup status box
             cv2.rectangle(image, (0,0), (255,90), (0,0,250), -1)
             
             # Rep data
@@ -157,16 +153,17 @@ def clap_detection():
             # Stage data
             cv2.putText(image, 'STAGE', (65,12), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv2.LINE_AA)
-            cv2.putText(image, stage, 
+            cv2.putText(image, stage_text, 
                         (100,65), 
                         cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv2.LINE_AA)
             
             
             # Render detections
-            mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                    mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), 
-                                    mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) 
-                                    )               
+            if results.pose_landmarks:
+                mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                        mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), 
+                                        mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) 
+                                        )               
             
             cv2.imshow('Mediapipe Feed', image)
 
